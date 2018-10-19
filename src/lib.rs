@@ -27,17 +27,17 @@ pub struct Table<T> {
 }
 
 impl<T> Table<T> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             data: HashMap::new(),
         }
     }
 
-    fn find<I: AsRef<str>>(&self, id: I) -> Record<T> {
+    pub fn find<I: AsRef<str>>(&self, id: I) -> Record<T> {
         self.data.get(id.as_ref()).expect("RecordNotFound").clone()
     }
 
-    fn insert<I>(&mut self, id: I, value: T) -> Record<T>
+    pub fn insert<I>(&mut self, id: I, value: T) -> Record<T>
     where
         I: AsRef<str> + std::string::ToString,
     {
@@ -55,17 +55,17 @@ pub struct HasMany<T> {
 }
 
 impl<T> HasMany<T> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             data: RefCell::new(Vec::new()),
         }
     }
 
-    fn push(&self, record: &Record<T>) {
+    pub fn push(&self, record: &Record<T>) {
         self.data.borrow_mut().push(record.clone());
     }
 
-    fn get(&self, index: usize) -> Record<T> {
+    pub fn get(&self, index: usize) -> Record<T> {
         self.data.borrow()[index].clone()
     }
 }
