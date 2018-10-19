@@ -1,17 +1,17 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Record<T> {
-    pub id: Rc<String>,
-    pub data: Rc<T>,
+    pub id: Arc<String>,
+    pub data: Arc<T>,
 }
 
 impl<T> Clone for Record<T> {
     fn clone(&self) -> Self {
         Self {
-            id: Rc::clone(&self.id),
-            data: Rc::clone(&self.data),
+            id: Arc::clone(&self.id),
+            data: Arc::clone(&self.data),
         }
     }
 }
@@ -42,8 +42,8 @@ impl<T> Table<T> {
         I: AsRef<str> + std::string::ToString,
     {
         let record = Record {
-            id: Rc::new(id.to_string()),
-            data: Rc::new(value),
+            id: Arc::new(id.to_string()),
+            data: Arc::new(value),
         };
         self.data.insert(id.to_string(), record.clone());
         record
