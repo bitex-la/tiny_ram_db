@@ -1,6 +1,6 @@
 [package]
 name = "tiny_ram_db"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["werner <werner@yahoo.es>"]
 description = "A Tiny RAM Database for fast access"
 license = "MIT/Apache-2.0"
