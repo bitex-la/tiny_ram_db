@@ -1,6 +1,10 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
+use std::cell::{RefCell, Ref};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::string::ToString;
+use std::cmp::Eq;
+use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 
 pub struct Record<T> {
     pub id: Arc<String>,
@@ -22,14 +26,24 @@ impl<T> PartialEq for Record<T> {
     }
 }
 
-pub struct Table<T> {
-    pub data: HashMap<String, Record<T>>,
+impl<T> Eq for Record<T> {}
+
+impl<T> Hash for Record<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
-impl<T> Table<T> {
+pub struct Table<T, Indexes> {
+    pub data: HashMap<String, Record<T>>,
+    pub indexes: Indexes
+}
+
+impl<T, Indexes: Indexer<Item=T>> Table<T, Indexes> {
     pub fn new() -> Self {
         Self {
             data: HashMap::new(),
+            indexes: Default::default()
         }
     }
 
@@ -39,151 +53,141 @@ impl<T> Table<T> {
 
     pub fn insert<I>(&mut self, id: I, value: T) -> Record<T>
     where
-        I: AsRef<str> + std::string::ToString,
+        I: AsRef<str> + ToString,
     {
         let record = Record {
             id: Arc::new(id.to_string()),
             data: Arc::new(value),
         };
         self.data.insert(id.to_string(), record.clone());
+        self.indexes.index(&record);
         record
     }
 }
 
-pub struct HasMany<T> {
-    pub data: RefCell<Vec<Record<T>>>,
+pub trait Indexer: Default {
+  type Item;
+
+  fn index(&self, item: &Record<Self::Item>){}
 }
 
-impl<T> HasMany<T> {
-    pub fn new() -> Self {
-        Self {
-            data: RefCell::new(Vec::new()),
-        }
+pub struct NoIndexes<T>(PhantomData<T>);
+
+impl<T> Indexer for NoIndexes<T> {
+  type Item = T;
+}
+
+impl<T> Default for NoIndexes<T> {
+  fn default() -> Self { Self{0: PhantomData} }
+}
+
+pub struct Index<K: Eq + Hash , V> {
+    pub data: RefCell<HashMap<K, Arc<RefCell<HashSet<Record<V>>>>>>,
+}
+
+impl<K: Eq + Hash, V> Default for Index<K, V> {
+    fn default() -> Self { 
+      Self{ data: RefCell::new(HashMap::new()) }
+    }
+}
+
+impl<K: Eq + Hash, V> Index<K, V> {
+    pub fn insert(&self, k: K, record: Record<V>) {
+        let mut index = self.data.borrow_mut();
+        let values = index.entry(k)
+          .or_insert(Arc::new(RefCell::new(HashSet::new())));
+        values.borrow_mut().insert(record);
     }
 
-    pub fn push(&self, record: &Record<T>) {
-        self.data.borrow_mut().push(record.clone());
-    }
-
-    pub fn get(&self, index: usize) -> Record<T> {
-        self.data.borrow()[index].clone()
+    pub fn get(&self, k: &K) -> Arc<RefCell<HashSet<Record<V>>>> {
+        let hashmap = self.data.borrow();
+        let hashset = hashmap.get(k).unwrap();
+        Arc::clone(&hashset)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use HasMany;
+    use NoIndexes;
+    use Indexer;
+    use Index;
     use Record;
     use Table;
+    use std::string::ToString;
+    use std::time::Instant;
 
-    struct Foo {
+    struct Author {
         name: String,
-        foo_friends: HasMany<FooFriend>,
     }
 
-    impl Foo {
-        fn new(name: String) -> Self {
-            Foo {
-                name,
-                foo_friends: HasMany::new(),
-            }
+    impl Author {
+        fn new<I: ToString>(name: I) -> Self {
+            Self { name: name.to_string() }
         }
     }
 
-    struct FooFriend {
-        name: String,
-        foo: Record<Foo>,
+    struct Post {
+        text: String,
+        author: Record<Author>,
     }
 
-    struct Bar {
-        name: String,
-        bar_friends: HasMany<BarFriend>,
+    #[derive(Default)]
+    struct PostIndexes {
+        by_author: Index<Record<Author>, Post>
     }
 
-    struct BarFriend {
-        name: String,
-        bar: Record<Bar>,
+    impl Indexer for PostIndexes {
+        type Item = Post;
+        fn index(&self, item: &Record<Post>){
+            self.by_author.insert(item.data.author.clone(), item.clone())
+        }
+    }
+
+    impl Post {
+        fn new<I: ToString>(author: &Record<Author>, text: I) -> Self {
+            Self { author: author.clone(), text: text.to_string() }
+        }
     }
 
     struct Database {
-        foos: Table<Foo>,
-        bars: Table<Bar>,
-        foo_friends: Table<FooFriend>,
-        bar_friends: Table<BarFriend>,
+        authors: Table<Author, NoIndexes<Author>>,
+        posts: Table<Post, PostIndexes>,
     }
 
     fn create_db() -> Database {
-        let mut foos: Table<Foo> = Table::new();
-        let mut foo_friends: Table<FooFriend> = Table::new();
+        let mut db : Database = Database {
+          authors: Table::new(),
+          posts: Table::new(),
+        };
 
-        let one_foo: Record<Foo> = foos.insert("1", Foo::new("one_foo".into()));
+        let bob = db.authors.insert("1", Author::new("bob"));
+        let ana = db.authors.insert("2", Author::new("ana"));
 
-        // 11.90s, SSD, 16Gb RAM, 4 cores i5 Intel
-        for _x in 0..500_000 {
-            let one = foo_friends.insert(
-                "1",
-                FooFriend {
-                    name: "friend 1".into(),
-                    foo: one_foo.clone(),
-                },
+        for x in 0..500_000 {
+            db.posts.insert(
+                x.to_string(),
+                Post::new(&bob, format!("Bob says hello #{}", x))
             );
-            let two = foo_friends.insert(
-                "2",
-                FooFriend {
-                    name: "friend 2".into(),
-                    foo: one_foo.clone(),
-                },
+            db.posts.insert(
+                (1000000 + x).to_string(),
+                Post::new(&ana, format!("Ana's recipe #{}", x))
             );
-            let three = foo_friends.insert(
-                "3",
-                FooFriend {
-                    name: "friend 3".into(),
-                    foo: one_foo.clone(),
-                },
-            );
-
-            one_foo.data.foo_friends.push(&one);
-            one_foo.data.foo_friends.push(&two);
-            one_foo.data.foo_friends.push(&three);
-
-            let two_foo: Record<Foo> = foos.insert("2", Foo::new("two_foo".into()));
-            let four = foo_friends.insert(
-                "4",
-                FooFriend {
-                    name: "friend 4".into(),
-                    foo: two_foo.clone(),
-                },
-            );
-            let five = foo_friends.insert(
-                "5",
-                FooFriend {
-                    name: "friend 5".into(),
-                    foo: two_foo.clone(),
-                },
-            );
-
-            two_foo.data.foo_friends.push(&one);
-            two_foo.data.foo_friends.push(&two);
-            two_foo.data.foo_friends.push(&three);
-            two_foo.data.foo_friends.push(&four);
-            two_foo.data.foo_friends.push(&five);
         }
-
-        Database {
-            bars: Table::new(),
-            bar_friends: Table::new(),
-            foos,
-            foo_friends,
-        }
+        db
     }
 
     #[test]
     fn obtain_data() {
+        let start = Instant::now();
         let db = create_db();
-        let second_friend = db.foos.find("1").data.foo_friends.get(1);
-        println!("Second foo friend id: {:#?}", second_friend.id);
-        println!("Second foo friend name: {:#?}", second_friend.data.name);
-        assert!(second_friend == db.foo_friends.find("2"));
-        assert!(second_friend.data.foo == db.foos.find("1"));
+        println!("DB Creation took {:?}", start.elapsed());
+        let a_post = db.posts.find("400000");
+        println!("A post text is: {}", &a_post.data.text);
+        println!("A post author is: {}", &a_post.data.author.data.name);
+        let by_author = &db.posts.indexes.by_author;
+        let index = by_author.get(&a_post.data.author);
+        let borrowed = index.borrow();
+        
+        println!("Author total post count is : {}", borrowed.len())
     }
 }
