@@ -35,7 +35,7 @@ impl<T> Hash for Record<T> {
 }
 
 pub struct Table<T, Indexes> {
-    pub data: HashMap<String, Record<T>>,
+    pub data: Arc<RwLock<HashMap<String, Record<T>>>>,
     pub indexes: Indexes,
 }
 
@@ -55,7 +55,6 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
     where
         I: AsRef<str> + ToString + Display,
     {
-
         let record = Record {
             id: Arc::new(id.to_string()),
             data: Arc::new(value),
@@ -103,9 +102,11 @@ impl<K: Eq + Hash, V> Index<K, V> {
         value.insert(record);
     }
 
-    pub fn get(&self, k: &K) -> HashSet<Record<V>> {
+    pub fn get<F, A>(&self, k: &K, closure: F) -> A
+        where F: FnOnce(&HashSet<Record<V>>) -> A
+    {
         let hashmap = self.data.read().expect("ErrorReadingDatabase");
-        hashmap.get(k).expect("RecordNotFound").to_owned()
+        closure(hashmap.get(k).expect("RecordNotFound"))
     }
 }
 
@@ -113,6 +114,7 @@ impl<K: Eq + Hash, V> Index<K, V> {
 mod tests {
     use std::string::ToString;
     use std::sync::{Arc, Mutex};
+    use std::collections::HashSet;
     use std::thread;
     use std::time::Instant;
     use Index;
@@ -146,8 +148,7 @@ mod tests {
     impl Indexer for PostIndexes {
         type Item = Post;
         fn index(&mut self, item: &Record<Post>) {
-            self.by_author
-                .insert(item.data.author.clone(), item.clone())
+            self.by_author.insert(item.data.author.clone(), item.clone())
         }
     }
 
@@ -159,6 +160,7 @@ mod tests {
             }
         }
     }
+
 
     struct Database {
         authors: Table<Author, NoIndexes<Author>>,
@@ -182,41 +184,43 @@ mod tests {
             .authors
             .insert("2", Author::new("ana"));
 
-        let mut handlers = vec![];
+        let mut handles = vec![];
 
-        for x in 0..500_000 {
+        let bob_db = db.clone();
 
-            let cloned_db = db.clone();
-            let cloned_bob = bob.clone();
+        let bob_thread = thread::spawn(move || {
+          for x in 0..500_000 {
+            bob_db
+                .lock()
+                .expect("Bob DB unavailable")
+                .posts
+                .insert(
+                    x.to_string(),
+                    Post::new(&bob, format!("Bob says hello #{}", x)),
+                );
+          }
+        });
 
-            let first_post = thread::spawn(move || {
-                cloned_db
-                    .lock()
-                    .expect("DB cloned unavailable")
-                    .posts
-                    .insert(
-                        x.to_string(),
-                        Post::new(&cloned_bob, format!("Bob says hello #{}", x)),
-                    );
-            });
-            handlers.push(first_post);
+        handles.push(bob_thread);
 
-            let db_second_cloned = Arc::clone(&db);
-            let cloned_ana = ana.clone();
-            let second_post = thread::spawn(move || {
-                db_second_cloned
-                    .lock()
-                    .expect("Obtain lock for second post")
-                    .posts
-                    .insert(
-                        (1000000 + x).to_string(),
-                        Post::new(&cloned_ana, format!("Ana's recipe #{}", x)),
-                    );
-            });
-            handlers.push(second_post);
-        }
-        for handle in handlers {
-            handle.join().expect("Error joining handlers");
+        let ana_db = db.clone();
+        let ana_thread = thread::spawn(move || {
+          for x in 0..500_000 {
+            ana_db
+                .lock()
+                .expect("Ana DB unavailable")
+                .posts
+                .insert(
+                    x.to_string(),
+                    Post::new(&ana, format!("Ana says hello #{}", x)),
+                );
+          }
+        });
+
+        handles.push(ana_thread);
+
+        for handle in handles {
+            handle.join().expect("Error joining handles");
         }
 
         db
@@ -236,8 +240,8 @@ mod tests {
             .posts
             .indexes
             .by_author
-            .get(&a_post.data.author);
+            .get(&a_post.data.author, |items| items.len() );
 
-        println!("Author total post count is : {}", by_author.len())
+        println!("Author total post count is : {}", by_author)
     }
 }
