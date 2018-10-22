@@ -1,4 +1,4 @@
-use std::cell::{RefCell, Ref};
+use std::cell::{RefCell};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::string::ToString;
@@ -68,7 +68,7 @@ impl<T, Indexes: Indexer<Item=T>> Table<T, Indexes> {
 pub trait Indexer: Default {
   type Item;
 
-  fn index(&self, item: &Record<Self::Item>){}
+  fn index(&self, _item: &Record<Self::Item>){}
 }
 
 pub struct NoIndexes<T>(PhantomData<T>);
