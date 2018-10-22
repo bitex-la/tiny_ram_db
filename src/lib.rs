@@ -68,7 +68,7 @@ impl<T, Indexes: Indexer<Item=T>> Table<T, Indexes> {
 pub trait Indexer: Default {
   type Item;
 
-  fn index(&self, _item: &Record<Self::Item>){}
+  fn index(&mut self, _item: &Record<Self::Item>){}
 }
 
 pub struct NoIndexes<T>(PhantomData<T>);
@@ -82,7 +82,7 @@ impl<T> Default for NoIndexes<T> {
 }
 
 pub struct Index<K: Eq + Hash , V> {
-    pub data: RefCell<HashMap<K, Arc<RefCell<HashSet<Record<V>>>>>>,
+    pub data: RefCell<HashMap<K, HashSet<Record<V>>>>,
 }
 
 impl<K: Eq + Hash, V> Default for Index<K, V> {
@@ -92,17 +92,16 @@ impl<K: Eq + Hash, V> Default for Index<K, V> {
 }
 
 impl<K: Eq + Hash, V> Index<K, V> {
-    pub fn insert(&self, k: K, record: Record<V>) {
-        let mut index = self.data.borrow_mut();
-        let values = index.entry(k)
-          .or_insert(Arc::new(RefCell::new(HashSet::new())));
-        values.borrow_mut().insert(record);
+    pub fn insert(&mut self, k: K, record: Record<V>) {
+        let value = self.data.get_mut()
+            .entry(k)
+            .or_insert(HashSet::new());
+        value.insert(record);
     }
 
-    pub fn get(&self, k: &K) -> Arc<RefCell<HashSet<Record<V>>>> {
+    pub fn get(&self, k: &K) -> HashSet<Record<V>> {
         let hashmap = self.data.borrow();
-        let hashset = hashmap.get(k).unwrap();
-        Arc::clone(&hashset)
+        hashmap.get(k).expect("RecordNotFound").to_owned()
     }
 }
 
@@ -138,7 +137,7 @@ mod tests {
 
     impl Indexer for PostIndexes {
         type Item = Post;
-        fn index(&self, item: &Record<Post>){
+        fn index(&mut self, item: &Record<Post>){
             self.by_author.insert(item.data.author.clone(), item.clone())
         }
     }
@@ -184,10 +183,8 @@ mod tests {
         let a_post = db.posts.find("400000");
         println!("A post text is: {}", &a_post.data.text);
         println!("A post author is: {}", &a_post.data.author.data.name);
-        let by_author = &db.posts.indexes.by_author;
-        let index = by_author.get(&a_post.data.author);
-        let borrowed = index.borrow();
+        let by_author = db.posts.indexes.by_author.get(&a_post.data.author);
         
-        println!("Author total post count is : {}", borrowed.len())
+        println!("Author total post count is : {}", by_author.len())
     }
 }
