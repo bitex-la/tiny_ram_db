@@ -5,6 +5,14 @@
 #[macro_use]
 extern crate error_chain;
 
+extern crate jsonapi;
+
+#[macro_use]
+extern crate serde_derive;
+
+extern crate serde;
+extern crate serde_json;
+
 use std::cmp::Eq;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -13,6 +21,7 @@ use std::sync::{Arc, RwLock};
 pub mod errors;
 use errors::*;
 
+#[derive(Serialize, Deserialize)]
 pub struct Record<T> {
     pub id: usize,
     pub data: Arc<T>,
@@ -65,14 +74,14 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
 
     pub fn find(&self, id: usize) -> Result<Record<T>> {
         match self.data.read()?.get(id) {
-          Some(entry) => Ok(entry.clone()),
-          _ => bail!(ErrorKind::RecordNotFound("".into()))
+            Some(entry) => Ok(entry.clone()),
+            _ => bail!(ErrorKind::RecordNotFound("".into())),
         }
     }
 
     pub fn insert(&mut self, value: T) -> Result<Record<T>> {
-				let mut table = self.data.write()?;
-				let id = table.len() + 1;
+        let mut table = self.data.write()?;
+        let id = table.len() + 1;
         let record = Record {
             id: id,
             data: Arc::new(value),
@@ -94,20 +103,20 @@ pub struct PlainTable<T> {
 impl<T> PlainTable<T> {
     pub fn new() -> Self {
         Self {
-            data: Arc::new(RwLock::new(Vec::new()))
+            data: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
     pub fn find(&self, id: usize) -> Result<Record<T>> {
         match self.data.read()?.get(id) {
-          Some(entry) => Ok(entry.clone()),
-          _ => bail!(ErrorKind::RecordNotFound("".into()))
+            Some(entry) => Ok(entry.clone()),
+            _ => bail!(ErrorKind::RecordNotFound("".into())),
         }
     }
 
     pub fn insert(&mut self, value: T) -> Result<Record<T>> {
-				let mut table = self.data.write()?;
-				let id = table.len() + 1;
+        let mut table = self.data.write()?;
+        let id = table.len() + 1;
         let record = Record {
             id: id,
             data: Arc::new(value),
@@ -129,7 +138,7 @@ pub trait Indexer: Default {
     type Item;
 
     fn index(&mut self, _item: &Record<Self::Item>) -> Result<bool> {
-      Ok(true)
+        Ok(true)
     }
 }
 
@@ -151,11 +160,12 @@ impl<K: Eq + Hash, V> Index<K, V> {
     }
 
     pub fn get<F, A>(&self, k: &K, closure: F) -> Result<A>
-        where F: FnOnce(&HashSet<Record<V>>) -> A
+    where
+        F: FnOnce(&HashSet<Record<V>>) -> A,
     {
         Ok(match self.data.get(k) {
-          Some(a) => closure(a),
-          _ => closure(&HashSet::new())
+            Some(a) => closure(a),
+            _ => closure(&HashSet::new()),
         })
     }
 }
