@@ -19,7 +19,7 @@ use std::sync::{Arc, RwLock};
 pub mod errors;
 use errors::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Record<T> {
     pub id: usize,
     pub data: Arc<T>,
