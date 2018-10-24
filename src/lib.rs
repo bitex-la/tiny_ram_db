@@ -19,10 +19,114 @@ use std::sync::{Arc, RwLock};
 pub mod errors;
 use errors::*;
 
-#[derive(Debug, Serialize, Deserialize)]
+use serde::de::{self, Deserialize, Deserializer, MapAccess, Visitor};
+use std::fmt;
+
+#[derive(Debug, Serialize)]
 pub struct Record<T> {
     pub id: usize,
     pub data: Arc<T>,
+}
+
+impl<'de, T> Deserialize<'de> for Record<T>
+where
+    T: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Field {
+            Id,
+            Data,
+        };
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D>(deserializer: D) -> ::std::result::Result<Field, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`id` or `data`")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> ::std::result::Result<Field, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "id" => Ok(Field::Id),
+                            "data" => Ok(Field::Data),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct RecordVisitor<'de, T>
+        where
+            T: Deserialize<'de>,
+        {
+            marker: std::marker::PhantomData<Record<T>>,
+            lifetime: std::marker::PhantomData<&'de ()>,
+        }
+
+        impl<'de, T> Visitor<'de> for RecordVisitor<'de, T>
+        where
+            T: serde::Deserialize<'de>,
+        {
+            type Value = Record<T>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct Record")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> ::std::result::Result<Record<T>, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut id = None;
+                let mut data = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Id => {
+                            if id.is_some() {
+                                return Err(de::Error::duplicate_field("id"));
+                            }
+                            id = Some(map.next_value()?);
+                        }
+                        Field::Data => {
+                            if data.is_some() {
+                                return Err(de::Error::duplicate_field("data"));
+                            }
+                            data = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let id = id.unwrap_or(0);
+                let data = data.ok_or_else(|| de::Error::missing_field("data"))?;
+                Ok(Record { id, data })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &["id", "data"];
+        deserializer.deserialize_struct(
+            "Record",
+            FIELDS,
+            RecordVisitor {
+                marker: std::marker::PhantomData::<Record<T>>,
+                lifetime: std::marker::PhantomData,
+            },
+        )
+    }
 }
 
 impl<T> Clone for Record<T> {

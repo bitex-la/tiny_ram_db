@@ -1,11 +1,18 @@
 extern crate tiny_ram_db;
 extern crate error_chain;
+extern crate serde;
+extern crate serde_json;
+
+#[macro_use]
+extern crate serde_derive;
+
 use std::string::ToString;
 use std::thread;
 use std::time::Instant;
 use tiny_ram_db::{Index, Indexer, Record, Table, PlainTable};
 use tiny_ram_db::errors::*;
 
+#[derive(Serialize, Debug, Deserialize)]
 struct Author {
     name: String,
 }
@@ -18,6 +25,7 @@ impl Author {
     }
 }
 
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 struct Post {
     text: String,
     author: Record<Author>,
@@ -118,4 +126,21 @@ fn obtain_data_result() -> Result<()> {
     println!("Bob post #9 author is {}", by_text.data.author.data.name);
 
     Ok(())
+}
+
+#[test]
+fn deserialize_record_with_no_id() {
+    use std::sync::Arc;
+    use serde_json;
+
+    let post: Post = serde_json::from_str(r#"{
+        "text": "Programming First Principles",
+        "author": {
+            "data": {
+                "name": "Jhon Doe"
+            }
+        }
+    }"#).unwrap();
+
+    assert_eq!(post, Post { text: "Programming First Principles".to_string(), author: Record { id: 0, data: Arc::new(Author { name: "Jhon Doe".to_string() }) } })
 }

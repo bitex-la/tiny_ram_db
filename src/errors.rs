@@ -1,4 +1,5 @@
 use std::sync::PoisonError;
+use serde_json::error::Error as SerdeError;
 
 error_chain! {
     errors {
