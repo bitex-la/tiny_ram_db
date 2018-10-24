@@ -21,7 +21,7 @@ use errors::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Record<T> {
-    pub id: usize,
+    pub id: Option<usize>,
     pub data: Arc<T>,
 }
 
@@ -81,7 +81,7 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
         let mut table = self.data.write()?;
         let id = table.len() + 1;
         let record = Record {
-            id: id,
+            id: Some(id),
             data: Arc::new(value),
         };
         table.push(record.clone());
@@ -116,7 +116,7 @@ impl<T> PlainTable<T> {
         let mut table = self.data.write()?;
         let id = table.len() + 1;
         let record = Record {
-            id: id,
+            id: Some(id),
             data: Arc::new(value),
         };
         table.push(record.clone());
