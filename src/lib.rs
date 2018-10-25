@@ -80,7 +80,7 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
 
     pub fn insert(&mut self, value: T) -> Result<Record<T>> {
         let mut table = self.data.write()?;
-        let id = table.len() + 1;
+        let id = table.len();
         let record = Record {
             id: id,
             data: Arc::new(value),
@@ -116,7 +116,7 @@ impl<T> PlainTable<T> {
 
     pub fn insert(&mut self, value: T) -> Result<Record<T>> {
         let mut table = self.data.write()?;
-        let id = table.len() + 1;
+        let id = table.len();
         let record = Record {
             id: id,
             data: Arc::new(value),
