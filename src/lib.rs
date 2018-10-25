@@ -48,6 +48,7 @@ impl<T> Hash for Record<T> {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Table<T, Indexes> {
     pub data: Arc<RwLock<Vec<Record<T>>>>,
     pub indexes: Arc<RwLock<Indexes>>,
@@ -94,6 +95,7 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
  * Once 'never' type is stable we can implement PlainTable as an alias
  * of Table with a no-op indexer
  */
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PlainTable<T> {
     pub data: Arc<RwLock<Vec<Record<T>>>>,
 }
