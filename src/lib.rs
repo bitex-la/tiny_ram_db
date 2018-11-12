@@ -50,8 +50,9 @@ impl<T> Hash for Record<T> {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Table<T, Indexes> {
-    pub data: Arc<RwLock<Vec<Record<T>>>>,
+    pub data: Arc<RwLock<HashMap<usize, Record<T>>>>,
     pub indexes: Arc<RwLock<Indexes>>,
+    last_id: usize
 }
 
 impl<T, Indexes: Indexer<Item = T>> Clone for Table<T, Indexes> {
@@ -59,6 +60,7 @@ impl<T, Indexes: Indexer<Item = T>> Clone for Table<T, Indexes> {
         Self {
             data: Arc::clone(&self.data),
             indexes: Arc::clone(&self.indexes),
+            last_id: self.last_id
         }
     }
 }
@@ -66,13 +68,14 @@ impl<T, Indexes: Indexer<Item = T>> Clone for Table<T, Indexes> {
 impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
     pub fn new() -> Self {
         Self {
-            data: Arc::new(RwLock::new(Vec::new())),
+            data: Arc::new(RwLock::new(HashMap::new())),
             indexes: Default::default(),
+            last_id: 1
         }
     }
 
     pub fn find(&self, id: usize) -> Result<Record<T>> {
-        match self.data.read()?.get(id) {
+        match self.data.read()?.get(&id) {
             Some(entry) => Ok(entry.clone()),
             _ => bail!(ErrorKind::RecordNotFound("".into())),
         }
@@ -80,12 +83,12 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
 
     pub fn insert(&mut self, value: T) -> Result<Record<T>> {
         let mut table = self.data.write()?;
-        let id = table.len();
+        self.last_id = self.last_id + 1;
         let record = Record {
-            id: id,
+            id: self.last_id,
             data: Arc::new(value),
         };
-        table.push(record.clone());
+        table.insert(self.last_id, record.clone());
         self.indexes.write()?.index(&record)?;
         Ok(record)
     }
@@ -97,18 +100,20 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
  */
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlainTable<T> {
-    pub data: Arc<RwLock<Vec<Record<T>>>>,
+    pub data: Arc<RwLock<HashMap<usize, Record<T>>>>,
+    last_id: usize
 }
 
 impl<T> PlainTable<T> {
     pub fn new() -> Self {
         Self {
-            data: Arc::new(RwLock::new(Vec::new())),
+            data: Arc::new(RwLock::new(HashMap::new())),
+            last_id: 1
         }
     }
 
     pub fn find(&self, id: usize) -> Result<Record<T>> {
-        match self.data.read()?.get(id) {
+        match self.data.read()?.get(&id) {
             Some(entry) => Ok(entry.clone()),
             _ => bail!(ErrorKind::RecordNotFound("".into())),
         }
@@ -116,12 +121,12 @@ impl<T> PlainTable<T> {
 
     pub fn insert(&mut self, value: T) -> Result<Record<T>> {
         let mut table = self.data.write()?;
-        let id = table.len();
+        self.last_id = self.last_id + 1;
         let record = Record {
-            id: id,
+            id: self.last_id,
             data: Arc::new(value),
         };
-        table.push(record.clone());
+        table.insert(self.last_id, record.clone());
         Ok(record)
     }
 }
@@ -130,6 +135,7 @@ impl<T> Clone for PlainTable<T> {
     fn clone(&self) -> Self {
         Self {
             data: Arc::clone(&self.data),
+            last_id: self.last_id
         }
     }
 }
