@@ -48,9 +48,11 @@ impl<T> Hash for Record<T> {
     }
 }
 
+pub type HashMapRecord<T> = HashMap<usize, Record<T>>;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Table<T, Indexes> {
-    pub data: Arc<RwLock<HashMap<usize, Record<T>>>>,
+    pub data: Arc<RwLock<HashMapRecord<T>>>,
     pub indexes: Arc<RwLock<Indexes>>,
     last_id: usize
 }
@@ -100,7 +102,7 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
  */
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PlainTable<T> {
-    pub data: Arc<RwLock<HashMap<usize, Record<T>>>>,
+    pub data: Arc<RwLock<HashMapRecord<T>>>,
     last_id: usize
 }
 
