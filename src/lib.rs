@@ -11,7 +11,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
-extern crate hashbrown;
+pub extern crate hashbrown;
 
 use std::cmp::Eq;
 use hashbrown::{HashMap, HashSet};
