@@ -1,6 +1,6 @@
 [package]
 name = "tiny_ram_db"
-version = "0.1.12"
+version = "0.1.13"
 authors = ["werner <werner@yahoo.es>", "nubis <yo@nubis.im>"]
 description = "A Tiny RAM Database for fast access"
 license = "MIT/Apache-2.0"
@@ -10,3 +10,4 @@ error-chain = "0.12.0"
 serde = { version = "1.0.80", features = ["rc"] }
 serde_derive = "1.0.80"
 serde_json = "1.0.32"
+hashbrown = { version = "0.1", features = ["serde"] } 

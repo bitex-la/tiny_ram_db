@@ -11,8 +11,10 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+extern crate hashbrown;
+
 use std::cmp::Eq;
-use std::collections::{HashMap, HashSet};
+use hashbrown::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, RwLock};
 
