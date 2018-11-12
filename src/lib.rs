@@ -72,7 +72,7 @@ impl<T, Indexes: Indexer<Item = T>> Table<T, Indexes> {
         Self {
             data: Arc::new(RwLock::new(HashMap::new())),
             indexes: Default::default(),
-            last_id: 1
+            last_id: 0
         }
     }
 
@@ -110,7 +110,7 @@ impl<T> PlainTable<T> {
     pub fn new() -> Self {
         Self {
             data: Arc::new(RwLock::new(HashMap::new())),
-            last_id: 1
+            last_id: 0
         }
     }
 
